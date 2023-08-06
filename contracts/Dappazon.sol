@@ -14,7 +14,22 @@ contract Dappazon {
         uint256 stock;
     }
 
+    struct Order {
+        uint256 time;
+        Item item;
+    }
+
     mapping(uint256 => Item) public items;
+    mapping(address => uint256) public orderCount;
+    mapping(address => mapping(uint256 => Order)) public orders;
+
+    event list(string name, uint256 cost, uint256 quantity);
+    event Buy(address buyer, uint256 orderId, uint256 itemId);
+    modifier onlyOwner() {
+        if (owner == msg.sender) {
+            _;
+        } else revert("not owner");
+    }
 
     constructor() {
         owner = msg.sender;
@@ -34,7 +49,8 @@ contract Dappazon {
         uint256 _cost,
         uint256 _rating,
         uint256 _stock
-    ) public payable {
+    ) public payable onlyOwner {
+        // require(owner == msg.sender, "only owner can list the product");
         Item memory item = Item(
             _id,
             _name,
@@ -48,5 +64,24 @@ contract Dappazon {
         // save the item to the blockchain with the mapping
         //mapping[id]=>instance of that stuct item
         items[_id] = item;
+        emit list(_name, _cost, _stock);
+    }
+
+    function buy(uint256 _id) public payable {
+        Item memory item = items[_id];
+        require(msg.value >= item.cost);
+        require(item.stock > 0);
+        Order memory order = Order(block.timestamp, item);
+        orderCount[msg.sender]++;
+        orders[msg.sender][orderCount[msg.sender]] = order;
+
+        // subtract the stock
+        items[_id].stock = item.stock - 1;
+        emit Buy(msg.sender, orderCount[msg.sender], item.id);
+    }
+
+    function withdraw() public onlyOwner {
+        (bool success, ) = owner.call{value: address(this).balance}("");
+        require(success);
     }
 }
